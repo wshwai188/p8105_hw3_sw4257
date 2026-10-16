@@ -1,0 +1,105 @@
+---
+title: "p8105_hw3_sw4257"
+author: "Shwai Wang"
+date: "2026-10-16"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r Library, message=FALSE}
+library(tidyverse)
+library(p8105.datasets)
+```
+
+# Problem 1
+## Data cleaning and description
+```{r Clean_the_data}
+data("ny_noaa")
+
+ny_noaa_df = ny_noaa |>
+  mutate(year = lubridate::year(date),
+         month = lubridate::month(date),
+         day = lubridate::day(date),
+         tmax = as.numeric(tmax) / 10,
+         tmin = as.numeric(tmin) / 10,
+         prcp = as.numeric(prcp) / 10)
+```
+
+The cleaned NY NOAA dataset contains `r format(nrow(ny_noaa_df), big.mark = ",")` observations from `r n_distinct(ny_noaa_df$id)` weather stations and `r ncol(ny_noaa_df)` variables. The data include station identifiers, observation dates, precipitation, snowfall, snow depth, maximum temperature, and minimum temperature. Separate variables for year, month, and day were created from the date variable. Maximum and minimum temperatures were converted to degrees Celsius, and precipitation was converted to millimeters.
+
+```{r Describe_the_dataset_and_missing_data}
+missing_summary = ny_noaa_df |>
+  summarize(across(
+    prcp:tmin, ~ sum(is.na(.)))) |>
+  pivot_longer(everything(),
+               names_to = "variable",
+               values_to = "number_of_missing") |>
+  mutate(percent_missing =
+           round(number_of_missing / nrow(ny_noaa_df) * 100, 2))
+
+missing_summary |>
+  knitr::kable(col.names = c("Variable",
+                             "Number Missing",
+                             "Percent Missing (%)"))
+```
+
+Missing data are an important feature of this dataset. Missingness is particularly substantial for maximum and minimum temperature, while precipitation has comparatively fewer missing observations. This is expected because individual weather stations do not necessarily report every weather measurement.
+
+## Common snowfall values
+```{r Most_commonly_observed_snowfall}
+common_snowfall =
+  ny_noaa_df |>
+  drop_na(snow) |>
+  count(snow, sort = TRUE)
+
+common_snowfall |>
+  slice_head(n = 10) |>
+  knitr::kable(col.names = c("Snowfall (mm)", 
+                             "Number of Observations"))
+```
+
+The most commonly observed snowfall value was 0 mm, followed by values including 25, 13, 51, and 76 mm. Zero is the most common value because snowfall does not occur on most days. Several other common values correspond approximately to measurements in half-inch or one-inch increments after conversion to millimeters.
+
+## January and July temperatures comparison
+```{r Compare_Jan_and_Jul, fig.width=10, fig.height=5, dpi=300, out.width="100%"}
+monthly_temperature = ny_noaa_df |>
+  filter(month %in% c(1, 7)) |>
+  group_by(id, year, month) |>
+  summarize(mean_tmax = mean(tmax, na.rm = TRUE),
+            .groups = "drop") |>  
+  filter(is.finite(mean_tmax)) |>
+  mutate(month = factor(month,
+                        levels = c(1, 7),
+                        labels = c("January", "July")))
+
+yearly_average = monthly_temperature |>
+  group_by(year, month) |>
+  summarize(overall_mean = mean(mean_tmax),
+            .groups = "drop")
+
+monthly_temperature |> 
+  ggplot(aes(x = year, y = mean_tmax, group = id)) +
+  geom_line(alpha = 0.2, color = "grey70", linewidth = 0.3) +
+  geom_line(data = yearly_average, 
+            aes(x = year, y = overall_mean, group = 1),
+            inherit.aes = FALSE,
+            color = "navy",
+            linewidth = 1) +
+  facet_wrap(~month, nrow = 1) +
+  scale_x_continuous(breaks = seq(1980, 2010, by = 10)) +
+  labs(title = "Average Maximum Temperature by Station",
+       subtitle = "Gray lines represent individual stations \nNavy lines represent yearly averages",
+       x = "Year",
+       y = "Average Maximum Temperature (°C)") +
+  theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        panel.spacing = grid::unit(1.5, "lines"))
+```
+
+Average maximum temperatures were substantially lower and more variable across stations in January than in July. Stations generally followed similar year-to-year patterns, indicating that unusually warm or cold years affected many stations across the state. A few potentially outlying station-year averages are visible, including a particularly low January value around 1982 and a low July value around 1988. These extreme values may reflect local weather conditions or incomplete monthly records rather than data errors.
