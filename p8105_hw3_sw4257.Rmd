@@ -106,7 +106,7 @@ monthly_temperature |>
 Average maximum temperatures were substantially lower and more variable across stations in January than in July. Stations generally followed similar year-to-year patterns, indicating that unusually warm or cold years affected many stations across the state. A few potentially outlying station-year averages are visible, including a particularly low January value around 1982 and a low July value around 1988. These extreme values may reflect local weather conditions or incomplete monthly records rather than data errors.
 
 ## Temperature and Snowfall Distributions
-```{r temperature_snowfall_plot, fig.width=12, fig.height=6, dpi=300, out.width="100%", fig.align="center"}
+```{r Temperature_Snowfall_plot, fig.width=12, fig.height=6, dpi=300, out.width="100%", fig.align="center"}
 temperature_plot = ny_noaa_df |>
   drop_na(tmin, tmax) |>
   ggplot(aes(x = tmin, y = tmax)) +
@@ -149,3 +149,95 @@ combined_plot
 Maximum and minimum temperatures showed a strong positive relationship on the left. Each observation represents the minimum and maximum temperatures recorded at one weather station on one day. Because the dataset contains millions of daily observations, two-dimensional bins were used instead of individual points. The color of each bin shows the number of observations within that temperature range. The dashed line represents values at which the maximum and minimum temperatures are equal. Most observations were above this line, as expected because the daily maximum temperature should generally be higher than the daily minimum temperature. The small number of observations below the line may indicate measurement or recording errors, while values far from the main concentration may represent extreme or unusual observations.
 
 For snowfall values greater than 0 mm and less than 100 mm, the yearly distributions shown on the right were generally similar. Most years had a median snowfall measurement of approximately 25 mm, although several years contained relatively large snowfall observations near 100 mm.
+
+
+# Problem 2
+## Data cleaning 
+```{r Import_nhanes_data}
+nhanes_covar = read_csv("data/nhanes_covar.csv",
+                        skip = 4,
+                        show_col_types = FALSE) |>
+  janitor::clean_names() |>
+  filter(age >= 21) |>
+  drop_na() |>
+  mutate(sex = factor(sex, levels = c(1, 2), labels = c("Male", "Female")),
+         education = factor(education, 
+                            levels = c(1, 2, 3), 
+                            labels = c("Less than high school",
+                                       "High school equivalent",
+                                       "More than high school")))
+
+nhanes_accel = read_csv("data/nhanes_accel.csv",
+                        show_col_types = FALSE) |>
+  janitor::clean_names() |>
+  pivot_longer(min1:min1440, 
+               names_to = "minute",
+               names_prefix = "min",
+               values_to = "mims",
+               names_transform = list(minute = as.integer))
+
+nhanes_df = inner_join(nhanes_covar, nhanes_accel, by = "seqn")
+```
+
+The demographic dataset was imported by skipping its first four descriptive rows. Participants younger than 21 years and those with missing demographic information were excluded. Sex and education were converted from numeric codes to factors with descriptive labels. The accelerometer measurements were converted from wide to long format so that each row represents one participant-minute observation. The cleaned datasets were then joined by participant sequence number. The resulting dataset contains `r n_distinct(nhanes_df$seqn)` participants and `r nrow(nhanes_df)` participant-minute observations.
+
+## Participant Counts and Age Distributions by Sex and Education
+```{r Gender_Education_table}
+sex_education_counts = nhanes_covar |>
+  count(education, sex) |>
+  pivot_wider( names_from = sex,
+               values_from = n,
+               values_fill = 0) |>
+  mutate(Total = Male + Female) |>
+  select(education, Male, Female, Total)
+
+sex_education_counts |> knitr::kable(
+  col.names = c("Education category", "Men", "Women", "Total"),
+  caption = "Participant Counts by Education Category and Sex")
+```
+
+The “More than high school” category had the most participants, with 56 men and 59 women. The “Less than high school” category included 27 men and 28 women. In the “High school equivalent” category, there were more men than women, with 35 men and 23 women.
+
+```{r Age_distribution_plot, fig.width=10, fig.height=4, dpi=300}
+age_plot = ggplot(nhanes_covar, aes(x = sex, y = age, fill = sex)) +
+  geom_violin(trim = FALSE, alpha = 0.4) +
+  geom_boxplot(width = 0.15, outlier.alpha = 0.3) +
+  facet_wrap(~education, nrow = 1) +
+  scale_fill_manual(values = c("Male" = "#4E79A7", "Female" = "#E15759")) +
+  labs(title = "Age Distributions by Sex and Education Category",
+       x = "Sex",
+       y = "Age (years)") +
+  guides(fill = "none") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+age_plot
+```
+
+The age distributions of men and women were similar in the “Less than high school” category, with median ages around 60 years. In the “High school equivalent” category, women tended to be older than men, with median ages of about 62 and 53 years, respectively. Participants in the “More than high school” category tended to be younger; the median ages were about 44 years for men and 41 years for women. However, ages varied widely and the distributions overlapped across groups.
+
+## Total Daily Activity by Age, Sex, and Education
+```{r Total_activity_by_age, fig.width=10, fig.height=4, dpi=300}
+nhanes_total = nhanes_df |>
+  group_by(seqn, sex, age, bmi, education) |>
+  summarize(total_activity = sum(mims), .groups = "drop")
+
+total_activity_plot = 
+  ggplot(nhanes_total, aes(x = age, y = total_activity, color = sex)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE) +
+  facet_wrap(~education, nrow = 1) +
+  scale_color_manual(values = c("Male" = "#4E79A7", "Female" = "#E15759")) +
+  scale_y_continuous(labels = scales::label_comma()) +
+  labs(title = "Total Daily Activity by Age, Sex, and Education",
+       x = "Age (years)",
+       y = "Total daily activity (MIMS)",
+       color = "Sex") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+total_activity_plot
+```
+
+Total daily activity varied substantially among participants. In the “Less than high school” category, activity generally declined with age for both men and women, although the trend was not perfectly consistent. In the “High school equivalent” category, women’s activity was higher than men’s around middle age, but declined with age; men’s activity also declined and then leveled off. In the “More than high school” category, women generally had higher activity than men through middle age, while activity for both sexes declined at older ages. The smooth curves should be interpreted cautiously because some age groups contain relatively few observations. One notably low activity value is also visible in the “More than high school” category.
+
