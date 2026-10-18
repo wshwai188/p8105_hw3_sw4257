@@ -199,7 +199,7 @@ sex_education_counts |> knitr::kable(
 The “More than high school” category had the most participants, with 56 men and 59 women. The “Less than high school” category included 27 men and 28 women. In the “High school equivalent” category, there were more men than women, with 35 men and 23 women.
 
 ```{r Age_distribution_plot, fig.width=10, fig.height=4, dpi=300}
-age_plot = ggplot(nhanes_covar, aes(x = sex, y = age, fill = sex)) +
+ggplot(nhanes_covar, aes(x = sex, y = age, fill = sex)) +
   geom_violin(trim = FALSE, alpha = 0.4) +
   geom_boxplot(width = 0.15, outlier.alpha = 0.3) +
   facet_wrap(~education, nrow = 1) +
@@ -210,8 +210,6 @@ age_plot = ggplot(nhanes_covar, aes(x = sex, y = age, fill = sex)) +
   guides(fill = "none") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
-
-age_plot
 ```
 
 The age distributions of men and women were similar in the “Less than high school” category, with median ages around 60 years. In the “High school equivalent” category, women tended to be older than men, with median ages of about 62 and 53 years, respectively. Participants in the “More than high school” category tended to be younger; the median ages were about 44 years for men and 41 years for women. However, ages varied widely and the distributions overlapped across groups.
@@ -222,8 +220,7 @@ nhanes_total = nhanes_df |>
   group_by(seqn, sex, age, bmi, education) |>
   summarize(total_activity = sum(mims), .groups = "drop")
 
-total_activity_plot = 
-  ggplot(nhanes_total, aes(x = age, y = total_activity, color = sex)) +
+ggplot(nhanes_total, aes(x = age, y = total_activity, color = sex)) +
   geom_point(alpha = 0.6) +
   geom_smooth(se = FALSE) +
   facet_wrap(~education, nrow = 1) +
@@ -235,8 +232,6 @@ total_activity_plot =
        color = "Sex") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
-
-total_activity_plot
 ```
 
 Total daily activity varied substantially among participants. In the “Less than high school” category, activity generally declined with age for both men and women, although the trend was not perfectly consistent. In the “High school equivalent” category, women’s activity was higher than men’s around middle age, but declined with age; men’s activity also declined and then leveled off. In the “More than high school” category, women generally had higher activity than men through middle age, while activity for both sexes declined at older ages. The smooth curves should be interpreted cautiously because some age groups contain relatively few observations. One notably low activity value is also visible in the “More than high school” category.
@@ -248,8 +243,7 @@ activity_profile = nhanes_df |>
   group_by(education, sex, hour) |>
   summarize(mean_mims = mean(mims), .groups = "drop")
 
-daily_activity_plot = 
-  ggplot(activity_profile, aes(x = hour, y = mean_mims, color = sex)) +
+ggplot(activity_profile, aes(x = hour, y = mean_mims, color = sex)) +
   geom_line(alpha = 0.4, linewidth = 0.4) +
   geom_smooth(method = "loess", se = FALSE, span = 0.2, linewidth = 1) +
   facet_wrap(~education, nrow = 1) +
@@ -265,8 +259,6 @@ daily_activity_plot =
   theme(plot.title = element_text(hjust = 0.5),
         legend.position = "bottom",
         panel.spacing.x = grid::unit(0.5, "cm"))
-
-daily_activity_plot
 ```
 
 Across all education categories, activity was lowest overnight, increased sharply in the morning, remained higher during the daytime, and declined in the evening. In the “Less than high school” category, men’s and women’s activity patterns were broadly similar, especially during the daytime. In the “High school equivalent” and “More than high school” categories, women generally had higher activity than men during much of the daytime. Activity levels for men and women became more similar overnight, when overall activity was low. These curves show average patterns within each group and do not establish that sex or education causes differences in activity.
@@ -335,22 +327,22 @@ top_start_stations_july_2024 |>
 The table shows the five most frequently used starting stations in the July 2024 sample. Counts include rides with a recorded starting station and represent the provided sample, not all Citi Bike trips.
 
 ## Median Ride Duration by Day of the Week, Month, and Year
-```{r median_duration_by_day, fig.width=10, fig.height=4.5, dpi=300}
+```{r Median_duration_by_day, fig.width=10, fig.height=4.5, dpi=300}
 median_duration_by_day = citibike_df |>
   group_by(year, month, weekdays) |>
   summarize(median_duration = median(duration),
             .groups = "drop")
 
-duration_plot = ggplot(median_duration_by_day,
-                      aes(x = weekdays, 
-                          y = median_duration, 
-                          color = factor(year),
-                          group = year)) +
+ggplot(median_duration_by_day,
+       aes(x = weekdays, 
+           y = median_duration, 
+           color = factor(year),
+           group = year)) +
   geom_line(linewidth = 0.8) +
   geom_point(size = 2) +
   facet_wrap(~month, nrow = 1) +
   scale_color_manual(values = c("2020" = "#4E79A7", "2024" = "#F28E2B")) +
-  labs(title = "Median Ride Duration by Day, Month, and Year",
+  labs(title = "Median Ride Duration by Weekday, Month, and Year",
        x = "Day of the week",
        y = "Median ride duration (minutes)",
        color = "Year") +
@@ -358,8 +350,37 @@ duration_plot = ggplot(median_duration_by_day,
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_text(angle = 45, hjust = 1))
 
-duration_plot
 ```
 
 Median ride durations were higher in July than in January in both years, and were consistently higher in 2020 than in the corresponding months of 2024. Ride durations tended to be longer on weekends, especially in July, although this pattern was less pronounced in January 2024. Weekday medians were relatively similar within each month.
 
+## Ride Duration by Month, Membership Status, and Bike Type in 2024
+```{r Ride_duration_2024_by_month_membership_bike_type, dpi=300}
+citibike_2024 = citibike_df |>
+  filter(year == 2024) |>
+  drop_na(duration, month, member_casual, rideable_type)
+
+ggplot(citibike_2024,
+       aes(x = rideable_type, y = duration, fill = rideable_type)) +
+  geom_violin(trim = TRUE, scale = "width", alpha = 0.7) +
+  geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.8) +
+  facet_grid(member_casual ~ month, switch = "y") +
+  scale_y_log10(breaks = c(1, 2, 5, 10, 20, 50, 100, 200),
+                labels = scales::label_number()) +
+  scale_fill_manual(values = c("Classic bike" = "#4E79A7", 
+                               "Electric bike" = "#F28E2B")) +
+  labs(title = "Ride Duration by Month, Membership Status, and Bike Type in 2024",
+       subtitle = "Boxes show medians and interquartile ranges; the y-axis uses a log scale",
+       x = "Bike type",
+       y = "Ride duration (minutes)",
+       fill = "Bike type") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        strip.placement = "outside",
+        strip.background = element_rect(fill = "grey95", color = NA),
+        strip.text = element_text(face = "bold"),
+        legend.position = "none")
+```
+
+Casual riders generally had longer rides than members across both months and bike types. Among casual riders, classic-bike rides had higher median durations than electric-bike rides in both months. Among members, the bike-type differences were smaller, with electric-bike rides having slightly higher medians. Median ride durations were generally higher in July than in January, particularly for casual riders. The distributions were right-skewed and overlapped across groups; the logarithmic y-axis helps show variation across the full range of ride durations.
